@@ -1,5 +1,14 @@
 require('dotenv').config();
 const {Bot, GrammyError, HttpError, Keyboard, InlineKeyboard, session } = require('grammy')
+const {startHandler} = require('./src/handlers/start')
+const {welcomeKeyboard} = require('./src/keyboards/welcomeKeyboard')
+const {exerciseSlection} = require('./src/keyboards/exerciseKeyboard')
+const {activityKeyboard} = require('./src/keyboards/activityKeyboard')
+const {selectGengerKeyboard} = require('./src/keyboards/genderKeyboard')
+const {selectKeyboard} = require('./src/keyboards/confirmKeyboard')
+const {formDataKeyboard} = require('./src/keyboards/changeValueKeyboard')
+const {calculateCalories} = require('./src/utils/calculateCalories')
+const {sessionMiddleware } = require('./src/middlewares/sessionMiddleware')
 const {hydrate} = require('@grammyjs/hydrate')
 const { conversations, createConversation } = require ('@grammyjs/conversations')
 const { FileAdapter } = require('@grammyjs/storage-file');
@@ -7,100 +16,18 @@ const { Menu } = require ("@grammyjs/menu");
 
 // Инициализация бота
 const bot = new Bot(process.env.BOT_API_KEY)
+bot.use(sessionMiddleware);
 
-const storage = new FileAdapter({
-        dir: 'sessions', // Папка для хранения сессий
-    serialize: (data) => {
-        console.log('Сохранение сессии:', data);
-        return JSON.stringify(data);
-    },
-    deserialize: (data) => {
-        const parsed = JSON.parse(data);
-        console.log('Загрузка сессии:', parsed);
-        return parsed;
-    },
-});
-
-bot.use(session({ 
-    initial:() => ({   }),
-    storage: storage, 
-}));
+bot.command('start', startHandler);
 bot.use(hydrate())
 bot.use(conversations());
-bot.use(createConversation(greeting));
-
-bot.api.setMyCommands([
-    {
-        command: 'start', 
-        description: 'Запустить бота',
-    },
-    // {
-    //     command: 'share',
-    //     description: 'Поделиться данными'
-    // },
-    // {
-    //     command: 'calculation',
-    //     description: 'Расчитать вес'
-    // },
-    // {
-    //     command: 'select',
-    //     description: 'Выбрать'
-    // },
-    // {
-    //     command: 'select_level',
-    //     description: 'Выбрать уровень'
-    // },
-    // {
-    //     command: 'menu',
-    //     description: 'Получить меню'
-    // },
-    {
-        command: 'welcome',
-        description: 'Добро пожаловать'
-    }
-
-]);
+bot.use(createConversation(greeting, { plugins: [hydrate()] }));
 
 
-
-bot.command('start', async(ctx) =>
-{
-    await ctx.reply('Привет я Бот')
-})
-
-
-bot.command('select_level', async (ctx) =>
-{
-    const inlineKeyboard = new  InlineKeyboard()
-                                .text('Начинающий уровень', 'junior').row()
-                                .text('Средний уровень', 'middle').row()
-                                .text('Максимальный уровень', 'senior')
-    await ctx.reply('Выбери свой уровень',
-        {
-            reply_markup: inlineKeyboard
-        })
-}) 
 const userMessageHistory = {};
-const welcomeKeyboard = new InlineKeyboard()
-                            .text('Получить консультацию')
-                            .text('Калькуляторо веса', 'calculator').row()
-                            .text('Тренировки')
-                            .text('Питание', 'nutrition')
-const exerciseSlection = new InlineKeyboard()
-                            .text('Жим лёжа', 'bench_press')                                                        
-                            .text('Присед').row()                                                        
-                            .text('Тяга к поясу')
-                            .text('Становая тяга').row()
-                            .text('<  Назад в меню', 'back-welcome-menu')         
 
-bot.command('welcome', async (ctx) =>
-{   
-    await ctx.reply(`*Добро\ пожаловать*    _${ctx.from.first_name}_`, 
-    {
-        parse_mode: "MarkdownV2",
-        reply_markup:  welcomeKeyboard        
-    })
-})
+       
+
 
 bot.callbackQuery('calculator', async (ctx) =>
 {
@@ -140,6 +67,7 @@ bot.callbackQuery('back-exercise', async(ctx) =>
         })
     await ctx.answerCallbackQuery()
 })
+
 bot.callbackQuery('nutrition', async(ctx) =>
 {
     await ctx.conversation.enter("greeting");
@@ -173,10 +101,7 @@ bot.use(async (ctx, next) =>
 
     if(!userId) return
 
-    // const state = userStates[userId]
-
-    const state = ctx.session.state
-
+    const state = ctx.session?.state
     if(ctx.message)
     {
         switch(state)
@@ -190,8 +115,20 @@ bot.use(async (ctx, next) =>
             case 'age':
                 await changeData(ctx)
                 break
+            case 'weight':
+                await changeWeight(ctx)
+                break
+            case 'height':
+                await changeHeight(ctx)
+                break
+            case 'activity':
+                await changeActivity(ctx)
+                break
+            case 'gender':
+                await changeGender(ctx)
+                break
         }
-        // ctx.session.state = null
+        // ctx.session.state = null 
     }
     await next();
 })
@@ -359,36 +296,80 @@ async function benchPress(ctx)
     }
 }
 
-
 async function greeting(conversation, ctx) 
 {
-    const selectKeyboard = new  InlineKeyboard()
-                                .text('Да', 'select-yes')
-                                .text("Нет", 'select-no')
-    // await conversation.run(hydrate())
     const weight = (await conversation.waitFor(":text")).msg.text
-    
+
     await ctx.reply('Пришли мне свой рост (см)');
     const height = (await conversation.waitFor(":text")).msg.text
     
-    await ctx.reply('Пришли мне свой возраст:');
+    await ctx.reply('Пришли мне свой возраст');
     const age = (await conversation.waitFor(":text")).msg.text
 
-    await ctx.reply('Укажите свой пол: (мужчина/женщина)');
-    const gender = (await conversation.waitFor(":text")).msg.text
+    await ctx.reply('Укажите свой пол:',
+        {
+            reply_markup: selectGengerKeyboard
+        });
+    const genderCallback = await conversation.waitFor('callback_query')
 
-    await ctx.reply('Уровень активности (коэффициент)');
-    const activityLevel = (await conversation.waitFor(":text")).msg.text
+    await ctx.api.answerCallbackQuery(genderCallback.update.callback_query.id); // Убираем индикатор загрузки
 
-    const formData = {weight, height, age, gender, activityLevel}
+    const gender = genderCallback.callbackQuery.data === 'male' ? 'Мужчина' : 'Женщина';
+
+    await ctx.reply(
+        'Укажите свой уровень активности:\n\n'+
+        '<b>🤒 Минимальная активность</b>(сидячий образ жизни)\n\n'+
+        '<b>🤧 Лёгкая активность </b>(легкие тренировки 1-3 раза в неделю)\n\n'+
+        '<b>😮 Средняя активность </b>(тренировки 3-5 раз в неделю\n\n'+
+        '<b>👹 Высокая активность </b>(интенсивные тренировки 6-7 раз в неделю)',
+        {
+            parse_mode: 'HTML',
+            reply_markup: activityKeyboard
+        }
+    );
+    const activityCallback = await conversation.waitFor('callback_query')
+
+    await ctx.api.answerCallbackQuery(activityCallback.update.callback_query.id); // Убираем индикатор загрузки
+
+    // const activityLevel = (await conversation.waitFor(":text")).msg.text
+    let activityLevel
+    let activityValue
+    switch( activityCallback.callbackQuery.data)
+    {
+        case 'minimal-activity':
+            activityLevel = 'Минимальная активность';
+            activityValue = 1.2
+            break
+        case 'light-activity':
+            activityLevel = 'Лёгкая активность';
+            activityValue = 1.375
+            break        
+        case 'medium-activity':
+            activityLevel = 'Средняя активность';
+            activityValue = 1.55
+            break            
+        case 'high-activity':
+            activityLevel = 'Высокая активность';
+            activityValue = 1.725
+            break            
+    }
+
+    const formData = {weight, height, age, gender, activityLevel, activityValue}
     
     conversation.session.weight = weight
     conversation.session.height = height;
     conversation.session.age = age;
-    conversation.session.gender = gender;
+    conversation.session.gender = gender 
     conversation.session.activityLevel = activityLevel;  
+    conversation.session.activityValue = activityValue;  
 
-    await ctx.reply(`<b>Данные Указаны Верно ?</b>\n\nВаши данные:\nВес: ${formData.weight}кг\nРост: ${formData.height}см\nВозраст: ${formData.age}лет\nПол: ${formData.gender}\nАктивность: ${formData.activityLevel}%`,
+    await ctx.reply(
+        `<b>Данные Указаны Верно ?</b>\n\n`+
+        `Ваши данные:\nВес: ${formData.weight}кг\n`+
+        `Рост: ${formData.height}см\n`+
+        `Возраст: ${formData.age}лет\n`+
+        `Пол: ${formData.gender}\n`+
+        `Активность: ${formData.activityLevel}`,
         {
             parse_mode: 'HTML',
             reply_markup: selectKeyboard
@@ -396,17 +377,11 @@ async function greeting(conversation, ctx)
 
 }
 
-const formDataKeyboard = new InlineKeyboard()
-                                .text('Вес','const-weight')
-                                .text('Рост','const-height')
-                                .text('Возраст','const-age').row()
-                                .text('Пол','const-gender')
-                                .text('Активность','const-activity')
+
                                 
 bot.on('callback_query:data', async (ctx) =>
 {
     await ctx.session
-    console.log('Сессия в callback_query:', ctx.session); // Логируем сессию
     if (ctx.callbackQuery.data === 'select-no')
     {
          await ctx.callbackQuery.message.editText('Выберите что нужно изменить',
@@ -416,21 +391,187 @@ bot.on('callback_query:data', async (ctx) =>
         await ctx.answerCallbackQuery()
         return
     }
-    if(ctx.callbackQuery.data === 'const-age')
+    if(ctx.callbackQuery.data === 'select-yes')
     {
-        const userId = ctx.callbackQuery.from.id;
-        // userStates[userId] = 'age';
-        ctx.session.state = 'age'
-        await ctx.callbackQuery.message.editText('Напиши мне свой возраст')
+        const userData = ctx.session
+        const totalCalories = calculateCalories(userData)
+        await ctx.callbackQuery.message.editText(`Расчёт калорий: ${totalCalories} ккал/день`)
         await ctx.answerCallbackQuery()
 
     }
+    if(ctx.callbackQuery.data === 'const-age')
+    {
+        ctx.session.state = 'age'
+        await ctx.callbackQuery.message.editText('Напиши мне свой возраст')
+        await ctx.answerCallbackQuery()
+    }
+    if(ctx.callbackQuery.data === 'const-weight')
+    {
+        ctx.session.state = 'weight'
+        await ctx.callbackQuery.message.editText('Напиши мне свой вес')
+        await ctx.answerCallbackQuery()
+    }
+    if(ctx.callbackQuery.data === 'const-height')
+    {
+        ctx.session.state = 'height'
+        await ctx.callbackQuery.message.editText('Напиши мне свой рост')
+        await ctx.answerCallbackQuery()
+    }
+    if(ctx.callbackQuery.data === 'const-activity')
+    {
+        await ctx.callbackQuery.message.editText('Укажите свой уровень активности:',
+            {
+                reply_markup: activityKeyboard
+            })
+        await ctx.answerCallbackQuery()
+        return
+    }
+    if(ctx.callbackQuery.data === 'minimal-activity' || 
+       ctx.callbackQuery.data === 'light-activity' ||
+       ctx.callbackQuery.data === 'medium-activity' ||
+       ctx.callbackQuery.data === 'high-activity')
+    {
+        console.log('ПОВТОР ЗАПРОСА АКТИВНОСТИ')
+        await ctx.answerCallbackQuery()
+        ctx.session.state = 'activity'
+        changeActivity(ctx)
+    }
+    if(ctx.callbackQuery.data === 'const-gender')
+    {
+
+        await ctx.callbackQuery.message.editText('Укажите свой пол:',
+            {
+                reply_markup: selectGengerKeyboard
+            })
+        await ctx.answerCallbackQuery()
+        return
+    }
+    if(ctx.callbackQuery.data === 'male' || ctx.callbackQuery.data === 'female')
+    {
+        ctx.session.state = 'gender'
+        changeGender(ctx)
+    }
 })
+
+async function changeWeight(ctx)
+{
+    await ctx.session
+    const newWeight = ctx.msg.text;
+    ctx.session.weight = newWeight
+
+    const formData = await ctx.session
+    await ctx.reply(
+        `<b>Данные Указаны Верно ?</b>\n\n`+
+        `Ваши данные:\n`+
+        `Вес: ${formData.weight}кг\n`+
+        `Рост: ${formData.height}см\n`+
+        `Возраст: ${formData.age}лет\n`+
+        `Пол: ${formData.gender}\n`+
+        `Активность: ${formData.activityLevel}`,
+    {
+        parse_mode: 'HTML',
+        reply_markup: selectKeyboard
+    })
+}
+async function changeHeight(ctx)
+{
+    await ctx.session
+    const newHeight = ctx.msg.text;
+    ctx.session.height = newHeight
+    const formData = await ctx.session
+    await ctx.reply(
+        `<b>Данные Указаны Верно ?</b>\n\n`+
+        `Ваши данные:\n`+
+        `Вес: ${formData.weight}кг\n`+
+        `Рост: ${formData.height}см\n`+
+        `Возраст: ${formData.age}лет\n`+
+        `Пол: ${formData.gender}\n`+
+        `Активность: ${formData.activityLevel}`,
+    {
+        parse_mode: 'HTML',
+        reply_markup: selectKeyboard
+    })
+}
 async function changeData(ctx)
 {
     await ctx.session
     const newAge = ctx.msg.text;
     ctx.session.age = newAge;
+    const formData = await ctx.session
+    await ctx.reply(
+        `<b>Данные Указаны Верно ?</b>\n\n`+
+        `Ваши данные:\n`+
+        `Вес: ${formData.weight}кг\n`+
+        `Рост: ${formData.height}см\n`+
+        `Возраст: ${formData.age}лет\n`+
+        `Пол: ${formData.gender}\n`+
+        `Активность: ${formData.activityLevel}`,
+    {
+        parse_mode: 'HTML',
+        reply_markup: selectKeyboard
+    })
+}
+async function changeGender(ctx)
+{
+    await ctx.session
+    const newGender = ctx.callbackQuery.data === 'male' ? 'Мужчина' : 'Женщина';
+    ctx.session.gender = newGender
+
+    const formData = await ctx.session
+    await ctx.callbackQuery.message.editText(
+        `<b>Данные Указаны Верно ?</b>\n\n`+
+        `Ваши данные:\n`+
+        `Вес: ${formData.weight}кг\n`+
+        `Рост: ${formData.height}см\n`+
+        `Возраст: ${formData.age}лет\n`+
+        `Пол: ${formData.gender}\n`+
+        `Активность: ${formData.activityLevel}%`,
+    {
+        parse_mode: 'HTML',
+        reply_markup: selectKeyboard
+    })
+
+}
+async function changeActivity(ctx)
+{
+    await ctx.session
+    let activityLevel;
+    let activityValue
+    switch( ctx.callbackQuery.data)
+    {
+        case 'minimal-activity':
+            activityLevel = 'Минимальная активность';
+            activityValue = 1.2
+            break
+        case 'light-activity':
+            activityLevel = 'Лёгкая активность';
+            activityValue = 1.375
+            break        
+        case 'medium-activity':
+            activityLevel = 'Средняя активность';
+            activityValue = 1.55
+            break            
+        case 'high-activity':
+            activityLevel = 'Высокая активность';
+            activityValue = 1.725
+            break            
+    }
+    const newActivity = activityLevel;
+    ctx.session.activityLevel = newActivity
+    ctx.session.activityValue = activityValue;
+    const formData = await ctx.session
+    await ctx.reply(
+        `<b>Данные Указаны Верно ?</b>\n\n`+
+        `Ваши данные:\n`+
+        `Вес: ${formData.weight}кг\n`+
+        `Рост: ${formData.height}см\n`+
+        `Возраст: ${formData.age}лет\n`+
+        `Пол: ${formData.gender}\n`+
+        `Активность: ${formData.activityLevel}`,
+    {
+        parse_mode: 'HTML',
+        reply_markup: selectKeyboard
+    })
 }
 bot.catch((err) =>
 {

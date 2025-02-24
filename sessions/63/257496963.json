@@ -1,7 +1,8 @@
 {
-	"weight": "45",
-	"height": "190",
-	"age": "23",
+	"state": "awaiting_bench_press_weight",
+	"weight": "41",
+	"height": "155",
+	"age": "26",
 	"gender": "Женщина",
 	"activityLevel": "Высокая активность",
 	"activityValue": 1.725
