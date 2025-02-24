@@ -376,7 +376,15 @@ async function greeting(conversation, ctx)
         })
 
 }
+// Обработчик для изменения пола
+async function handleGenderChange(ctx) {
+    await ctx.callbackQuery.message.editText('Укажите свой пол:', {
+        reply_markup: selectGengerKeyboard,
+    });
+    await ctx.answerCallbackQuery();
+}
 
+// Обработчик для подтверждения данных и расчета калорий
 async function handlerConfirmation(ctx)
 {
     const { gender, weight, height, age, activityLevel } = ctx.session;
