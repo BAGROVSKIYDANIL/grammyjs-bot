@@ -376,6 +376,15 @@ async function greeting(conversation, ctx)
         })
 
 }
+
+
+// Обработчик для изменения уровня активности
+async function handleActivityChange(ctx) {
+    await ctx.answerCallbackQuery();
+    ctx.session.state = 'activity';
+    await changeActivity(ctx);
+}
+
 // Обработчик для изменения пола
 async function handleGenderChange(ctx) {
     await ctx.callbackQuery.message.editText('Укажите свой пол:', {
