@@ -406,80 +406,33 @@ async function handlerConfirmation(ctx)
     }
 }
                                 
-bot.on('callback_query:data', async (ctx) =>
-{
-    await ctx.session
-    if (ctx.callbackQuery.data === 'select-no')
-    {
-         await ctx.callbackQuery.message.editText('Выберите что нужно изменить',
-            {
-                reply_markup: formDataKeyboard
-            })
-        await ctx.answerCallbackQuery()
-        return
-    }
-    if(ctx.callbackQuery.data === 'select-yes')
-    {
-        const userData = ctx.session
-        const totalCalories = calculateCalories(userData)
-        await ctx.callbackQuery.message.editText(`Расчёт калорий: ${totalCalories} ккал/день`)
-        await ctx.answerCallbackQuery()
 
-    }
-    if(ctx.callbackQuery.data === 'const-age')
-    {
-        ctx.session.state = 'age'
-        await ctx.callbackQuery.message.editText('Напиши мне свой возраст')
-        await ctx.answerCallbackQuery()
-    }
-    if(ctx.callbackQuery.data === 'const-weight')
-    {
-        ctx.session.state = 'weight'
-        await ctx.callbackQuery.message.editText('Напиши мне свой вес')
-        await ctx.answerCallbackQuery()
-    }
-    if(ctx.callbackQuery.data === 'const-height')
-    {
-        ctx.session.state = 'height'
-        await ctx.callbackQuery.message.editText('Напиши мне свой рост')
-        await ctx.answerCallbackQuery()
-    }
-    if(ctx.callbackQuery.data === 'const-activity')
-    {
-        await ctx.callbackQuery.message.editText('Укажите свой уровень активности:',
-            {
-                reply_markup: activityKeyboard
-            })
-        await ctx.answerCallbackQuery()
-        return
-    }
-    if(ctx.callbackQuery.data === 'minimal-activity' || 
-       ctx.callbackQuery.data === 'light-activity' ||
-       ctx.callbackQuery.data === 'medium-activity' ||
-       ctx.callbackQuery.data === 'high-activity')
-    {
-        console.log('ПОВТОР ЗАПРОСА АКТИВНОСТИ')
-        await ctx.answerCallbackQuery()
-        ctx.session.state = 'activity'
-        changeActivity(ctx)
-    }
-    if(ctx.callbackQuery.data === 'const-gender')
-    {
+bot.on('callback_query:data', async (ctx) => {
+    const callBackData = ctx.callbackQuery.data;
 
-        await ctx.callbackQuery.message.editText('Укажите свой пол:',
-            {
-                reply_markup: selectGengerKeyboard
-            })
-        await ctx.answerCallbackQuery()
-        return
+    const handlers = {
+        'select-no': async () => await ctx.callbackQuery.message.editTexT('Выберите что нужно изменить', {
+            reply_markup: formDataKeyboard
+        }),
+        'select-yes': handlerConfirmation,
+        'const-age': () => handleDataChange(ctx, 'age', 'Напиши мне свой возраст'),
+        'const-weight': () => handleDataChange(ctx, 'weight', 'Напиши мне свой вес'),
+        'const-height': () => handleDataChange(ctx, 'height', 'Напиши мне свой рост'),
+        'const-activity': () => handleDataChange(ctx, 'activity', 'Укажите свой уровень активности:'),
+        'minimal-activity': handleActivityChange,
+        'light-activity': handleActivityChange,
+        'medium-activity': handleActivityChange,
+        'high-activity': handleActivityChange,
+        'const-gender': handleGenderChange,
+        'male': () => handleDataChange(ctx, 'gender', 'Укажите свой пол:'),
+        'female': () => handleDataChange(ctx, 'gender', 'Укажите свой пол:'),
     }
-    if(ctx.callbackQuery.data === 'male' || ctx.callbackQuery.data === 'female')
+
+    if(handlers[callBackData])
     {
-        ctx.session.state = 'gender'
-        changeGender(ctx)
+        await handlers[callBackData](ctx)
     }
 })
-
 async function changeWeight(ctx)
 {
     await ctx.session
