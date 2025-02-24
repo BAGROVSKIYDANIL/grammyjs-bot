@@ -75,8 +75,7 @@ bot.callbackQuery('nutrition', async(ctx) =>
 })
 
 
-const menuKeyboard = new InlineKeyboard().text('Получить консультацию', 'get')
-                                        .text('Поддержка', 'support')
+
 const backKeyboard = new InlineKeyboard().text('< Назад в меню', 'back')
 
 bot.command('menu', async (ctx) =>
@@ -377,7 +376,12 @@ async function greeting(conversation, ctx)
 
 }
 
-
+// Обработчик для изменения данных
+async function handleDataChange(ctx, field, message) {
+    ctx.session.state = field;
+    await ctx.callbackQuery.message.editText(message);
+    await ctx.answerCallbackQuery();
+}
 // Обработчик для изменения уровня активности
 async function handleActivityChange(ctx) {
     await ctx.answerCallbackQuery();
@@ -411,9 +415,11 @@ bot.on('callback_query:data', async (ctx) => {
     const callBackData = ctx.callbackQuery.data;
 
     const handlers = {
-        'select-no': async () => await ctx.callbackQuery.message.editTexT('Выберите что нужно изменить', {
-            reply_markup: formDataKeyboard
-        }),
+        'select-no': async () => {
+        await ctx.callbackQuery.message.editText('Выберите что нужно изменить', {
+                    reply_markup: formDataKeyboard
+                })
+        },
         'select-yes': handlerConfirmation,
         'const-age': () => handleDataChange(ctx, 'age', 'Напиши мне свой возраст'),
         'const-weight': () => handleDataChange(ctx, 'weight', 'Напиши мне свой вес'),
