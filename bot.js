@@ -377,7 +377,17 @@ async function greeting(conversation, ctx)
 
 }
 
+async function handlerConfirmation(ctx)
+{
+    const { gender, weight, height, age, activityLevel } = ctx.session;
 
+    if (gender && weight && height && age && activityLevel)
+    {
+        const totalCalories = calculateCalories({ weight, height, age, gender, activityLevel });
+        await ctx.callbackQuery.message.editText(`Расчёт калорий: ${totalCalories} ккал/день`);
+
+    }
+}
                                 
 bot.on('callback_query:data', async (ctx) =>
 {
