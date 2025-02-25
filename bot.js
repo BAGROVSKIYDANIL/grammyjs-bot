@@ -24,34 +24,31 @@ bot.use(conversations());
 bot.use(createConversation(greeting, { plugins: [hydrate()] }));
 
 
-const userMessageHistory = {};
+let userMessageHistory = {};
 
        
 
 
-bot.callbackQuery('calculator', async (ctx) =>
-{
-    await ctx.callbackQuery.message.editText('Выбери упражнение',
-        {
-            reply_markup: exerciseSlection,
-        })
-    await ctx.answerCallbackQuery()
-})
-bot.callbackQuery('back-welcome-menu', async (ctx) =>
-{
-    await ctx.editMessageReplyMarkup({reply_markup: welcomeKeyboard})
-})
+// bot.callbackQuery('calculator', async (ctx) =>
+// {
+//     await ctx.callbackQuery.message.editText('Выбери упражнение',
+//         {
+//             reply_markup: exerciseSlection,
+//         })
+//     await ctx.answerCallbackQuery()
+// })
+// bot.callbackQuery('back-welcome-menu', async (ctx) =>
+// {
+//     await ctx.editMessageReplyMarkup({reply_markup: welcomeKeyboard})
+// })
 let userStates = {}; // Хранилище состояний пользователей
 
 
 bot.callbackQuery('bench_press', async(ctx) =>
 {
     const backKeyboard = new InlineKeyboard().text('<  Назад в меню', 'back-exercise')
-                                        
-    const userId = ctx.callbackQuery.from.id;
-    // userStates[userId] = 'awaiting_bench_press_weight';
     ctx.session.state = 'awaiting_bench_press_weight';
-    console.log(userStates)
+
     await ctx.callbackQuery.message.editText('Пришли мне свой максимальный вес',
         {
             reply_markup: backKeyboard
@@ -76,16 +73,7 @@ bot.callbackQuery('nutrition', async(ctx) =>
 
 
 
-const backKeyboard = new InlineKeyboard().text('< Назад в меню', 'back')
-
-bot.command('menu', async (ctx) =>
-{
-    await ctx.reply('Выберите пункт меню',
-        {
-            reply_markup: menuKeyboard,
-        }
-    )
-})
+const backKeyboard = new InlineKeyboard().text('< Назад в меню test', 'back')
 
 
 const backKeyboard2 = new InlineKeyboard().text('<  Назад в меню', 'back-exercise-selcect')
@@ -105,9 +93,6 @@ bot.use(async (ctx, next) =>
     {
         switch(state)
         {
-            case 'awaiting_nutrition':
-                await handleNutrition(ctx)
-                break
             case 'awaiting_bench_press_weight':
                 await benchPress(ctx)
                 break
@@ -134,58 +119,9 @@ bot.use(async (ctx, next) =>
 
 
 
-bot.callbackQuery('back-exercise-selcect', async (ctx) => 
-{
-    const backKeyboard = new InlineKeyboard().text('<  Назад в меню', 'back-exercise')
-    const chatId = ctx.chat.id;
 
-        if (userMessageHistory[chatId]) 
-        {
-            for (const messageId of userMessageHistory[chatId]) 
-            {
-                try 
-                {
-                    await ctx.api.deleteMessage(chatId, messageId);
-                } 
-                catch (error) 
-                {
-                    console.error(`Не удалось удалить сообщение ${messageId}:`, error);
-                }
-            }
-            userMessageHistory[chatId] = [];
-        }
-    await ctx.reply('Пришли мне свой максимальный вес',
-        {
-             reply_markup: backKeyboard
-        })
-});
 
-async function handleNutrition(ctx)
-{
-    let chatId = ctx.chat.id;
-    // const messageIdToDelete = ctx.message.editReplyMarkup;
-    const weight = parseFloat(ctx.message.text);
-    if(!isNaN(weight))
-    {
-       ctx.session.weight = weight
-            for (const messageId of userMessageHistory[chatId]) 
-            {
-                try 
-                {
-                    await ctx.api.deleteMessage(chatId, messageId);
-                } 
-                catch (error) 
-                {
-                    console.error(`Не удалось удалить сообщение ${messageId}:`, error);
-                }
-            }
-            userMessageHistory[chatId] = [];        
-    }
-    else 
-    {
-         await ctx.reply('Пожалуйста, отправьте корректное значение для питания.');
-    }
-}
+
 async function benchPress(ctx) 
 {
     const weight = parseFloat(ctx.message.text);
@@ -274,7 +210,15 @@ async function benchPress(ctx)
             tableStringSubMaxDay += row.map(cell => cell.padEnd(12)).join("")
             tableStringSubMaxDay += '\n'
         })
+
+
+    // userMessageHistory[chatId] = [];
+        // ctx.session.userMessage = {chatId}
+        // const userMessageHistory = ctx.session.userMessage
+        let userMessageHistory = {}
         userMessageHistory[chatId] = [];
+            // console.log('ARRAY2',userMessageHistory)
+
         const volumeDayMessage = await ctx.reply(`Объёмный день  <pre>${tableStringVolumeDay}</pre>`, {parse_mode: 'HTML'})        
         userMessageHistory[chatId].push(volumeDayMessage.message_id)
         const strengthDayawaitMessage = await ctx.reply(`Силовой день <pre>${tableStringStrengthDay}</pre>`, {parse_mode: 'HTML'}) 
@@ -285,6 +229,8 @@ async function benchPress(ctx)
                 parse_mode: 'HTML'
             })     
         userMessageHistory[chatId].push(subMaxDayawaitMessage.message_id)  
+        ctx.session.userMesage = userMessageHistory
+        console.log('MESSAGE USER',userMessageHistory)
     }
     else 
     {
@@ -294,7 +240,38 @@ async function benchPress(ctx)
             })          
     }
 }
+bot.callbackQuery('back-exercise-selcect', async (ctx) => 
+{
+    await ctx.session
+    const backKeyboard = new InlineKeyboard().text('<  Назад в меню', 'back-exercise')
+    const chatId = ctx.chat.id;
+    const userMessageHistory = ctx.session.userMesage
 
+    console.log('**',userMessageHistory)
+        if (userMessageHistory[chatId]) 
+        {
+            console.log('worj')
+            for (const messageId of userMessageHistory[chatId]) 
+            {
+                try 
+                {
+                    console.log('ID',messageId)
+                    await ctx.api.deleteMessage(chatId, messageId);
+                    // ctx.session.userMesage = null
+                    delete ctx.session.userMesage
+                } 
+                catch (error) 
+                {
+                    console.error(`Не удалось удалить сообщение ${messageId}:`, error);
+                }
+            }
+            userMessageHistory[chatId] = [];
+        }
+    await ctx.reply('Пришли мне свой максимальный вес',
+        {
+             reply_markup: backKeyboard
+        })
+});
 async function greeting(conversation, ctx) 
 {
     const weight = (await conversation.waitFor(":text")).msg.text
@@ -416,9 +393,22 @@ bot.on('callback_query:data', async (ctx) => {
 
     const handlers = {
         'select-no': async () => {
-        await ctx.callbackQuery.message.editText('Выберите что нужно изменить', {
-                    reply_markup: formDataKeyboard
-                })
+            await ctx.callbackQuery.message.editText('Выберите что нужно изменить', {
+                        reply_markup: formDataKeyboard
+            });
+            await ctx.answerCallbackQuery()
+        },
+        'calculator': async (ctx) =>
+        {
+            await ctx.callbackQuery.message.editText('Выбери упражнение',
+            {
+                reply_markup: exerciseSlection,
+            })
+            await ctx.answerCallbackQuery()
+        },
+        'back-welcome-menu': async(ctx) =>
+        {
+            await ctx.editMessageReplyMarkup({reply_markup: welcomeKeyboard})
         },
         'select-yes': handlerConfirmation,
         'const-age': () => handleDataChange(ctx, 'age', 'Напиши мне свой возраст'),
